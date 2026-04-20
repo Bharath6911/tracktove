@@ -124,61 +124,57 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
           
           // Find the listing container (parent element)
           let container = link.closest('li') || link.closest('div[class*="item"]') || link.parentElement?.parentElement;
-          
-          // Look for container with price - try different levels
-          let priceContainer = container;
-          let searchDepth = 0;
-          while (priceContainer && !priceContainer.textContent?.match(/[$€£¥₹₽₩₪₨₱₡₲₴₵₸₺₼₾]/) && searchDepth < 5) {
-            priceContainer = priceContainer.parentElement;
-            searchDepth++;
+          let depth = 0;
+          while (container && !container.textContent?.match(/[$€£¥₹₽₩₪₨₱₡₲₴₵₸₺₼₾]/) && depth < 3) {
+            container = container.parentElement;
+            depth++;
+            if (container?.tagName === 'BODY') {
+              container = null;
+              break;
+            }
           }
           
-          if (!priceContainer) priceContainer = container;
-          if (!priceContainer) priceContainer = link.parentElement?.parentElement?.parentElement;
+          if (!container) container = link.parentElement?.parentElement?.parentElement;
           
-          // Extract price from the specific container
+          // Extract price - support multiple currencies and formats
           let price = 0;
-          if (priceContainer) {
-            const containerText = priceContainer.textContent || '';
-            // Look for currency symbol patterns more carefully
-            const currencySymbols = /[$€£¥₹₽₩₪₨₱₡₲₴₵₸₺₼₾]/g;
-            let match;
-            const pricesFound = [];
+          if (container) {
+            const containerText = container.textContent || '';
+            // Find all currency symbols and their associated amounts
+            const symbolMatch = containerText.match(/([$€£¥₹₽₩₪₨₱₡₲₴₵₸₺₼₾]\s*[\d.,]+)/g) || [];
             
-            while ((match = currencySymbols.exec(containerText)) !== null) {
-              const startPos = match.index + 1;
-              const portion = containerText.substring(startPos, startPos + 20).trim();
-              const numMatch = portion.match(/^([\d.,]+)/);
+            const prices: number[] = [];
+            for (const match of symbolMatch) {
+              // Extract just the numbers, handling different decimal separators
+              let numStr = match.replace(/[$€£¥₹₽₩₪₨₱₡₲₴₵₸₺₼₾\s]/g, '');
               
-              if (numMatch) {
-                let numStr = numMatch[1];
-                const commaCount = (numStr.match(/,/g) || []).length;
-                const dotCount = (numStr.match(/\./g) || []).length;
-                
-                if (commaCount > 0 || dotCount > 0) {
-                  const lastDot = numStr.lastIndexOf('.');
-                  const lastComma = numStr.lastIndexOf(',');
-                  if (lastDot > lastComma) {
-                    numStr = numStr.replace(/,/g, '');
-                  } else if (lastComma > lastDot) {
-                    numStr = numStr.replace(/\./g, '').replace(',', '.');
-                  }
+              // Handle European (comma as decimal) vs US (dot as decimal) format
+              if (numStr.includes(',') && numStr.includes('.')) {
+                // Both symbols present - rightmost is decimal
+                if (numStr.lastIndexOf('.') > numStr.lastIndexOf(',')) {
+                  numStr = numStr.replace(/,/g, '');
+                } else {
+                  numStr = numStr.replace(/\./g, '').replace(',', '.');
                 }
-                
-                const val = parseFloat(numStr);
-                if (val > 0.5 && val < 10000000) {
-                  pricesFound.push(val);
+              } else if (numStr.includes(',')) {
+                // Only comma - could be European decimal or thousands
+                const parts = numStr.split(',');
+                if (parts[1]?.length === 2) {
+                  // European format: 1.234,56
+                  numStr = numStr.replace('.', '').replace(',', '.');
                 }
+                // Otherwise it's thousands separator, leave as is
+              }
+              
+              const val = parseFloat(numStr);
+              if (val > 0.5 && val < 10000000) {
+                prices.push(val);
               }
             }
             
-            // Use the smallest reasonable price (usually the item price, not shipping)
-            if (pricesFound.length > 0) {
-              price = Math.min(...pricesFound);
-              // Debug logging
-              if (country === "Germany" || country === "France") {
-                console.log(`[eBay Debug] ${country} - Found ${pricesFound.length} prices: ${pricesFound.slice(0, 3).join(', ')} -> selected ${price}`);
-              }
+            // Use the smallest price (usually main price, not shipping/total)
+            if (prices.length > 0) {
+              price = Math.min(...prices);
             }
           }
           
