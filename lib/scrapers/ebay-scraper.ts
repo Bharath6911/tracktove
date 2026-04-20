@@ -122,23 +122,11 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
             return;
           }
           
-          // Find the listing container (parent element) - more specific search
-          let container = link.closest('[role="listitem"]') || 
-                         link.closest('[class*="s-item"]') || 
-                         link.closest('li') || 
-                         link.closest('div[class*="item"]') || 
-                         link.parentElement?.parentElement;
-          
-          // Make sure we have a reasonable container (not too big)
-          if (container && container.textContent && container.textContent.length > 5000) {
-            // Container text is too large, likely got a parent that's too big
-            // Try to find a more specific child container
-            container = link.closest('li') || link.parentElement?.parentElement;
-          }
-          
+          // Find the listing container (parent element)
+          let container = link.closest('li') || link.closest('div[class*="item"]') || link.parentElement?.parentElement;
           while (container && !container.textContent?.match(/[$€£¥₹₽₩₪₨₱₡₲₴₵₸₺₼₾]/)) {
             container = container.parentElement;
-            if (container?.tagName === 'BODY' || (container && container.textContent && container.textContent.length > 5000)) {
+            if (container?.tagName === 'BODY') {
               container = null;
               break;
             }
@@ -146,26 +134,43 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
           
           if (!container) container = link.parentElement?.parentElement?.parentElement;
           
-          // Extract price - look for the first currency symbol + number pattern
+          // Extract price - match currency symbol + digits/commas/dots
           let price = 0;
           if (container) {
             const text = container.textContent || '';
-            // Match currency symbol + amount: $99.99 or €99,99 or £99.99
-            const match = text.match(/([$€£¥₹₽₩₪₨₱₡₲₴₵₸₺₼₾])\s*([\d,]+\.?\d*)/);
+            // Match first currency symbol followed by amount (handles . and , separators)
+            const match = text.match(/([$€£¥₹₽₩₪₨₱₡₲₴₵₸₺₼₾])\s*([\d,.]+)/);
             if (match && match[2]) {
               let numStr = match[2].trim();
-              // Handle decimal/thousand separators
-              if (numStr.includes('.') || numStr.includes(',')) {
-                const lastComma = numStr.lastIndexOf(',');
-                const lastDot = numStr.lastIndexOf('.');
-                if (lastDot > lastComma) {
-                  // Dot is rightmost -> US/UK format: "1,234.56"
-                  numStr = numStr.replace(/,/g, '');
-                } else if (lastComma > lastDot) {
-                  // Comma is rightmost -> European format: "1.234,56"
-                  numStr = numStr.replace(/\./g, '').replace(',', '.');
+              // Smarter parsing: if only one separator, use it as decimal if it's comma, thousands if dot
+              const commas = numStr.split(',').length - 1;
+              const dots = numStr.split('.').length - 1;
+              
+              if (commas === 1 && dots === 0) {
+                // Single comma: could be "99,99" (EU) or "1,234" (thousands - unlikely as first price)
+                // Assume EU format if ≤ 2 digits after comma
+                const parts = numStr.split(',');
+                if (parts[1].length <= 2) {
+                  numStr = numStr.replace(',', '.');  // EU decimal
+                }
+                // else leave as is (thousands separator)
+              } else if (dots === 1 && commas === 0) {
+                // Single dot: "99.99" or "1.234"
+                // Assume decimal if ≤ 2 digits after dot, thousands otherwise
+                const parts = numStr.split('.');
+                if (parts[1].length > 2) {
+                  numStr = numStr.replace('.', '');  // Thousands separator
+                }
+                // else keep the dot (decimal)
+              } else if (commas > 0 && dots > 0) {
+                // Multiple separators: rightmost is decimal
+                if (numStr.lastIndexOf('.') > numStr.lastIndexOf(',')) {
+                  numStr = numStr.replace(/,/g, '');  // US format
+                } else {
+                  numStr = numStr.replace(/\./g, '').replace(',', '.');  // EU format
                 }
               }
+              
               price = parseFloat(numStr);
               if (!(price > 0.5 && price < 10000000)) {
                 price = 0;
