@@ -261,7 +261,7 @@ export function DashboardPage() {
 
                 {loading ? (
                   <div className="flex items-center justify-center py-8">
-                    <div className="text-slate-400">Searching eBay India, UK, US & Etsy...</div>
+                    <div className="text-slate-400">Searching eBay {bookmark.country || "USA"}...</div>
                   </div>
                 ) : listings.length === 0 ? (
                   <div className="flex items-center justify-center py-8">

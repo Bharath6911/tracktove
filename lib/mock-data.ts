@@ -89,23 +89,8 @@ export function estimateLatestCount(term: string): number {
 }
 
 export function createInitialBookmarks(): Bookmark[] {
-  const now = new Date().toISOString();
-
-  const seeds: Array<{ term: string; marketplace: Marketplace }> = [
-    { term: "vintage watches", marketplace: "eBay" },
-    { term: "retro sneakers", marketplace: "eBay" },
-    { term: "pokemon cards", marketplace: "eBay" },
-  ];
-
-  return seeds.map((seed, index) => ({
-    id: `bookmark-${index + 1}`,
-    term: seed.term,
-    marketplace: seed.marketplace,
-    country: "USA",
-    totalLatest: estimateLatestCount(seed.term),
-    lastUpdatedIso: now,
-    trackingEnabled: true,
-  }));
+  // Start with empty list - user adds keywords manually
+  return [];
 }
 
 export function refreshBookmarkStats(bookmarks: Bookmark[]): Bookmark[] {
