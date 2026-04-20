@@ -175,6 +175,9 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
             // Use the smallest price (usually main price, not shipping/total)
             if (prices.length > 0) {
               price = Math.min(...prices);
+              if (country === "Germany" || country === "France") {
+                console.log(`[eBay-Price] ${country} item "${title.substring(0, 30)}..." prices found: ${prices.slice(0, 5).join(', ')} -> selected €${price}`);
+              }
             }
           }
           
