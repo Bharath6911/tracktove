@@ -122,11 +122,23 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
             return;
           }
           
-          // Find the listing container (parent element)
-          let container = link.closest('li') || link.closest('div[class*="item"]') || link.parentElement?.parentElement;
+          // Find the listing container (parent element) - more specific search
+          let container = link.closest('[role="listitem"]') || 
+                         link.closest('[class*="s-item"]') || 
+                         link.closest('li') || 
+                         link.closest('div[class*="item"]') || 
+                         link.parentElement?.parentElement;
+          
+          // Make sure we have a reasonable container (not too big)
+          if (container && container.textContent && container.textContent.length > 5000) {
+            // Container text is too large, likely got a parent that's too big
+            // Try to find a more specific child container
+            container = link.closest('li') || link.parentElement?.parentElement;
+          }
+          
           while (container && !container.textContent?.match(/[$€£¥₹₽₩₪₨₱₡₲₴₵₸₺₼₾]/)) {
             container = container.parentElement;
-            if (container?.tagName === 'BODY') {
+            if (container?.tagName === 'BODY' || (container && container.textContent && container.textContent.length > 5000)) {
               container = null;
               break;
             }
@@ -134,7 +146,7 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
           
           if (!container) container = link.parentElement?.parentElement?.parentElement;
           
-          // Extract price - find currency symbol followed by digits
+          // Extract price - look for the first currency symbol + number pattern
           let price = 0;
           if (container) {
             const text = container.textContent || '';
@@ -142,17 +154,15 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
             const match = text.match(/([$€£¥₹₽₩₪₨₱₡₲₴₵₸₺₼₾])\s*([\d,]+\.?\d*)/);
             if (match && match[2]) {
               let numStr = match[2].trim();
-              // Simple approach: remove separators and parse
-              // For "150" -> 150, for "1,500" -> 1500, for "1.50" -> 1.50, for "1,50" -> 150
+              // Handle decimal/thousand separators
               if (numStr.includes('.') || numStr.includes(',')) {
-                // Has decimals/thousands
                 const lastComma = numStr.lastIndexOf(',');
                 const lastDot = numStr.lastIndexOf('.');
                 if (lastDot > lastComma) {
-                  // Dot is rightmost -> US format: "1,234.56" or "12.34"
+                  // Dot is rightmost -> US/UK format: "1,234.56"
                   numStr = numStr.replace(/,/g, '');
                 } else if (lastComma > lastDot) {
-                  // Comma is rightmost -> European format: "1.234,56" or "12,34"
+                  // Comma is rightmost -> European format: "1.234,56"
                   numStr = numStr.replace(/\./g, '').replace(',', '.');
                 }
               }
