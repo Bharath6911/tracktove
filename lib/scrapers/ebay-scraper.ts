@@ -135,29 +135,57 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
           if (!container) container = link.parentElement?.parentElement?.parentElement;
           
           // Extract price - support multiple currency symbols ($, €, £, etc)
+          // and different number formats (1,234.56 or 1.234,56)
           let price = 0;
           if (container) {
             const containerText = container.textContent || '';
-            // Find price pattern: currency symbol followed by digits/commas/decimals
-            // Matches: $999.99, €999,99, £999.99, etc
-            const priceMatches = containerText.match(/[$€£¥₹₽₩₪₨₱₡₲₴₵₸₺₼₾]/g) || [];
+            // Match currency symbols followed by amounts
+            // Supports: $99.99, €99,99, £99.99, etc
+            const currencySymbols = /[$€£¥₹₽₩₪₨₱₡₲₴₵₸₺₼₾]/g;
+            let match;
+            const matches = [];
+            while ((match = currencySymbols.exec(containerText)) !== null) {
+              matches.push(match);
+            }
             
-            if (priceMatches.length > 0) {
-              // Get unique positions of price symbols
-              const positions = priceMatches.map(() => containerText.search(/[$€£¥₹₽₩₪₨₱₡₲₴₵₸₺₼₾]/));
+            // For each currency symbol found, try to extract the price
+            for (const match of matches) {
+              const startPos = match.index + 1;
+              // Get next 20 chars to extract the number
+              const portion = containerText.substring(startPos, startPos + 20).trim();
               
-              // For each potential price, extract the number part
-              for (const pos of positions) {
-                if (pos === -1) continue;
-                // Look for digits/commas/dots after the currency symbol
-                const afterSymbol = containerText.substring(pos + 1, pos + 20);
-                const numMatch = afterSymbol.match(/^[\s]*[\d,]+\.?\d*/);
-                if (numMatch) {
-                  const val = parseFloat(numMatch[0].trim().replace(/[,]/g, ''));
-                  if (val > 0.5 && val < 10000000) {
-                    price = val;
-                    break;
+              // Try to match number patterns: 1234, 1,234, 1.234, 12,34, etc
+              const numMatch = portion.match(/^([\d.,]+)/);
+              if (numMatch) {
+                let numStr = numMatch[1];
+                // Handle different European vs US number formats
+                // If we have both comma and dot, figure out which is decimal separator
+                const commaCount = (numStr.match(/,/g) || []).length;
+                const dotCount = (numStr.match(/\./g) || []).length;
+                
+                if (commaCount > 0 || dotCount > 0) {
+                  if (commaCount === 1 && dotCount === 0) {
+                    // Single comma - European format (1.234,56 or just 1,56)
+                    numStr = numStr.replace('.', '').replace(',', '.');
+                  } else if (commaCount === 0 && dotCount === 1) {
+                    // Single dot - US format (1,234.56 or just 1.56)
+                    numStr = numStr.replace(',', '');
+                  } else if (commaCount > 0 && dotCount > 0) {
+                    // Both present - rightmost is decimal separator
+                    const lastDot = numStr.lastIndexOf('.');
+                    const lastComma = numStr.lastIndexOf(',');
+                    if (lastDot > lastComma) {
+                      numStr = numStr.replace(/,/g, '').replace('.', '.');
+                    } else {
+                      numStr = numStr.replace(/\./g, '').replace(',', '.');
+                    }
                   }
+                }
+                
+                const val = parseFloat(numStr);
+                if (val > 0.5 && val < 10000000) {
+                  price = val;
+                  break;
                 }
               }
             }
