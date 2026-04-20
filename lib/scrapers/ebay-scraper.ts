@@ -124,70 +124,57 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
           
           // Find the listing container (parent element)
           let container = link.closest('li') || link.closest('div[class*="item"]') || link.parentElement?.parentElement;
-          while (container && !container.textContent?.includes('$')) {
-            container = container.parentElement;
-            if (container?.tagName === 'BODY') {
-              container = null;
-              break;
-            }
+          
+          // Look for container with price - try different levels
+          let priceContainer = container;
+          let searchDepth = 0;
+          while (priceContainer && !priceContainer.textContent?.match(/[$€£¥₹₽₩₪₨₱₡₲₴₵₸₺₼₾]/) && searchDepth < 5) {
+            priceContainer = priceContainer.parentElement;
+            searchDepth++;
           }
           
-          if (!container) container = link.parentElement?.parentElement?.parentElement;
+          if (!priceContainer) priceContainer = container;
+          if (!priceContainer) priceContainer = link.parentElement?.parentElement?.parentElement;
           
-          // Extract price - support multiple currency symbols ($, €, £, etc)
-          // and different number formats (1,234.56 or 1.234,56)
+          // Extract price from the specific container
           let price = 0;
-          if (container) {
-            const containerText = container.textContent || '';
-            // Match currency symbols followed by amounts
-            // Supports: $99.99, €99,99, £99.99, etc
+          if (priceContainer) {
+            const containerText = priceContainer.textContent || '';
+            // Look for currency symbol patterns more carefully
             const currencySymbols = /[$€£¥₹₽₩₪₨₱₡₲₴₵₸₺₼₾]/g;
             let match;
-            const matches = [];
-            while ((match = currencySymbols.exec(containerText)) !== null) {
-              matches.push(match);
-            }
+            const pricesFound = [];
             
-            // For each currency symbol found, try to extract the price
-            for (const match of matches) {
+            while ((match = currencySymbols.exec(containerText)) !== null) {
               const startPos = match.index + 1;
-              // Get next 20 chars to extract the number
               const portion = containerText.substring(startPos, startPos + 20).trim();
-              
-              // Try to match number patterns: 1234, 1,234, 1.234, 12,34, etc
               const numMatch = portion.match(/^([\d.,]+)/);
+              
               if (numMatch) {
                 let numStr = numMatch[1];
-                // Handle different European vs US number formats
-                // If we have both comma and dot, figure out which is decimal separator
                 const commaCount = (numStr.match(/,/g) || []).length;
                 const dotCount = (numStr.match(/\./g) || []).length;
                 
                 if (commaCount > 0 || dotCount > 0) {
-                  if (commaCount === 1 && dotCount === 0) {
-                    // Single comma - European format (1.234,56 or just 1,56)
-                    numStr = numStr.replace('.', '').replace(',', '.');
-                  } else if (commaCount === 0 && dotCount === 1) {
-                    // Single dot - US format (1,234.56 or just 1.56)
-                    numStr = numStr.replace(',', '');
-                  } else if (commaCount > 0 && dotCount > 0) {
-                    // Both present - rightmost is decimal separator
-                    const lastDot = numStr.lastIndexOf('.');
-                    const lastComma = numStr.lastIndexOf(',');
-                    if (lastDot > lastComma) {
-                      numStr = numStr.replace(/,/g, '').replace('.', '.');
-                    } else {
-                      numStr = numStr.replace(/\./g, '').replace(',', '.');
-                    }
+                  const lastDot = numStr.lastIndexOf('.');
+                  const lastComma = numStr.lastIndexOf(',');
+                  if (lastDot > lastComma) {
+                    numStr = numStr.replace(/,/g, '');
+                  } else if (lastComma > lastDot) {
+                    numStr = numStr.replace(/\./g, '').replace(',', '.');
                   }
                 }
                 
                 const val = parseFloat(numStr);
                 if (val > 0.5 && val < 10000000) {
-                  price = val;
-                  break;
+                  pricesFound.push(val);
                 }
               }
+            }
+            
+            // Use the smallest reasonable price (usually the item price, not shipping)
+            if (pricesFound.length > 0) {
+              price = Math.min(...pricesFound);
             }
           }
           
