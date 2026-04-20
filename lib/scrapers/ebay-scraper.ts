@@ -138,21 +138,27 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
           let price = 0;
           if (container) {
             const text = container.textContent || '';
-            // Match currency symbol + amount (handles comma and dot as separators)
-            const match = text.match(/([$€£¥₹₽₩₪₨₱₡₲₴₵₸₺₼₾])\s*([\d,.\s]+)/);
+            // Match currency symbol + amount: $99.99 or €99,99 or £99.99
+            const match = text.match(/([$€£¥₹₽₩₪₨₱₡₲₴₵₸₺₼₾])\s*([\d,]+\.?\d*)/);
             if (match && match[2]) {
-              let numStr = match[2].trim().replace(/\s/g, '');
-              // Remove both dots and commas, then parse - this catches most formats
-              const cleanNum = numStr.replace(/[,.]/g, '');
-              const val = parseInt(cleanNum) / (numStr.match(/[.,]/g)?.length === 1 && numStr.match(/[.,]$/)?.[0] === ',' ? 10 : 1);
-              if (val > 0.5 && val < 10000000) {
-                price = val;
-              } else {
-                // Fallback: try a simpler approach
-                const simpleMatch = numStr.match(/^([\d,]+)/);
-                if (simpleMatch) {
-                  price = parseFloat(simpleMatch[1].replace(/,/g, ''));
+              let numStr = match[2].trim();
+              // Simple approach: remove separators and parse
+              // For "150" -> 150, for "1,500" -> 1500, for "1.50" -> 1.50, for "1,50" -> 150
+              if (numStr.includes('.') || numStr.includes(',')) {
+                // Has decimals/thousands
+                const lastComma = numStr.lastIndexOf(',');
+                const lastDot = numStr.lastIndexOf('.');
+                if (lastDot > lastComma) {
+                  // Dot is rightmost -> US format: "1,234.56" or "12.34"
+                  numStr = numStr.replace(/,/g, '');
+                } else if (lastComma > lastDot) {
+                  // Comma is rightmost -> European format: "1.234,56" or "12,34"
+                  numStr = numStr.replace(/\./g, '').replace(',', '.');
                 }
+              }
+              price = parseFloat(numStr);
+              if (!(price > 0.5 && price < 10000000)) {
+                price = 0;
               }
             }
           }
