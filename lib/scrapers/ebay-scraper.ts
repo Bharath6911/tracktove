@@ -14,10 +14,10 @@ interface ScrapedEbayItem {
 }
 
 // Fetch real eBay data using Puppeteer
-async function fetchRealEbayListings(searchTerm: string): Promise<ScrapedEbayItem[]> {
+async function fetchRealEbayListings(searchTerm: string, country: string = "USA"): Promise<ScrapedEbayItem[]> {
   let browser;
   try {
-    console.log(`[eBay] Launching Puppeteer for: "${searchTerm}"`);
+    console.log(`[eBay] Launching Puppeteer for: "${searchTerm}" in ${country}`);
 
     browser = await puppeteer.launch({
       headless: true,
@@ -29,7 +29,20 @@ async function fetchRealEbayListings(searchTerm: string): Promise<ScrapedEbayIte
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     );
 
-    const searchUrl = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(searchTerm)}&_sop=12`;
+    // Map country to eBay domain
+    const countryDomainMap: Record<string, string> = {
+      "USA": "ebay.com",
+      "UK": "ebay.co.uk",
+      "Canada": "ebay.ca",
+      "India": "ebay.in",
+      "Australia": "ebay.com.au",
+      "Germany": "ebay.de",
+      "France": "ebay.fr",
+    };
+
+    const domain = countryDomainMap[country] || "ebay.com";
+
+    const searchUrl = `https://${domain}/sch/i.html?_nkw=${encodeURIComponent(searchTerm)}&_sop=12`;
     console.log(`[eBay] Navigating to: ${searchUrl}`);
 
     await page.goto(searchUrl, { waitUntil: "networkidle2", timeout: 30000 });
@@ -173,12 +186,13 @@ async function fetchRealEbayListings(searchTerm: string): Promise<ScrapedEbayIte
 
 export async function scrapeEbayListings(
   searchTerm: string,
-  sort: string = "12h"
+  sort: string = "12h",
+  country: string = "USA"
 ): Promise<ScrapedEbayItem[]> {
   try {
-    console.log(`[Scraper] Searching for: "${searchTerm}"`);
+    console.log(`[Scraper] Searching for: "${searchTerm}" in ${country}`);
 
-    const listings = await fetchRealEbayListings(searchTerm);
+    const listings = await fetchRealEbayListings(searchTerm, country);
 
     if (listings.length > 0) {
       console.log(`✓ Successfully retrieved ${listings.length} real eBay listings`);

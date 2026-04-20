@@ -62,7 +62,7 @@ export function DashboardPage() {
       // Fetch listings for each bookmark (searches all regions and marketplaces)
       const results = await Promise.all(
         bookmarks.map((bookmark) =>
-          fetchListings(bookmark.term, bookmark.id)
+          fetchListings(bookmark.term, bookmark.id, bookmark.country || selectedCountry)
         )
       );
 
@@ -83,7 +83,8 @@ export function DashboardPage() {
       const dedupe = previous.find(
         (bookmark) =>
           bookmark.term.toLowerCase() === input.term.toLowerCase() &&
-          bookmark.marketplace === input.marketplace
+          bookmark.marketplace === input.marketplace &&
+          bookmark.country === selectedCountry
       );
 
       if (dedupe) {
@@ -95,6 +96,7 @@ export function DashboardPage() {
           id: crypto.randomUUID(),
           term: input.term,
           marketplace: input.marketplace,
+          country: selectedCountry,
           totalLatest: 0,
           lastUpdatedIso: new Date().toISOString(),
           trackingEnabled: true,

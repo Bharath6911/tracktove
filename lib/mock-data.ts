@@ -101,6 +101,7 @@ export function createInitialBookmarks(): Bookmark[] {
     id: `bookmark-${index + 1}`,
     term: seed.term,
     marketplace: seed.marketplace,
+    country: "USA",
     totalLatest: estimateLatestCount(seed.term),
     lastUpdatedIso: now,
     trackingEnabled: true,

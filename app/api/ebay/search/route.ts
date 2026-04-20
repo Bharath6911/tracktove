@@ -24,6 +24,7 @@ interface EbaySearchResponse {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get("q");
+  const country = searchParams.get("country") || "USA";
   const sortBy = searchParams.get("sort") || "12h";
 
   if (!query) {
@@ -32,7 +33,7 @@ export async function GET(request: Request) {
 
   try {
     // Use web scraper instead of API
-    const items = await scrapeEbayListings(query, sortBy);
+    const items = await scrapeEbayListings(query, sortBy, country);
 
     return Response.json({
       items,

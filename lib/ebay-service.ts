@@ -16,11 +16,12 @@ interface EbayItem {
 export async function fetchEbayListings(
   term: string,
   bookmarkId: string,
+  country: string = "USA",
   marketplace: Marketplace = "eBay"
 ): Promise<Listing[]> {
   try {
     // Fetch from our backend scraper endpoint
-    const response = await fetch(`/api/ebay/search?q=${encodeURIComponent(term)}&sort=12h`);
+    const response = await fetch(`/api/ebay/search?q=${encodeURIComponent(term)}&country=${encodeURIComponent(country)}&sort=12h`);
 
     if (!response.ok) {
       console.error(`Failed to fetch eBay listings: ${response.statusText}`);
@@ -56,11 +57,12 @@ export async function fetchEbayListings(
 export async function fetchListings(
   term: string,
   bookmarkId: string,
+  country: string = "USA",
   marketplace: Marketplace = "eBay"
 ): Promise<Listing[]> {
   // For now, only support eBay
   if (marketplace === "eBay") {
-    return fetchEbayListings(term, bookmarkId, marketplace);
+    return fetchEbayListings(term, bookmarkId, country, marketplace);
   }
 
   return [];

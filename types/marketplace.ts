@@ -6,6 +6,7 @@ export type Bookmark = {
   id: string;
   term: string;
   marketplace: Marketplace;
+  country: string;
   totalLatest: number;
   lastUpdatedIso: string;
   trackingEnabled: boolean;
