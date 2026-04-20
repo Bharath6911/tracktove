@@ -45,6 +45,7 @@ export async function fetchEbayListings(
       listingUrl: item.viewItemURL,
       sellerName: item.seller || "",
       sellerUrl: "",
+      currency: item.currencyId || "USD",
     }));
 
     return listings;

@@ -26,6 +26,7 @@ export type Listing = {
   listingUrl: string;
   sellerName: string;
   sellerUrl: string;
+  currency: string;
 };
 
 export type AlertItem = {

@@ -23,7 +23,7 @@ export function ListingCard({ listing, detailHref }: ListingCardProps) {
         <h3 className="line-clamp-2 text-sm font-semibold text-white">{listing.title}</h3>
 
         <div className="flex items-center justify-between">
-          <p className="text-lg font-bold text-white">{formatPrice(listing.price)}</p>
+          <p className="text-lg font-bold text-white">{formatPrice(listing.price, listing.currency)}</p>
           <p className="text-xs text-slate-400">{formatRelativeTime(listing.postedAtIso)}</p>
         </div>
 

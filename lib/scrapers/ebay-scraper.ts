@@ -39,7 +39,18 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
       "France": "ebay.fr",
     };
 
+    // Map country to currency code
+    const countryCurrencyMap: Record<string, string> = {
+      "USA": "USD",
+      "UK": "GBP",
+      "Canada": "CAD",
+      "Australia": "AUD",
+      "Germany": "EUR",
+      "France": "EUR",
+    };
+
     const domain = countryDomainMap[country] || "ebay.com";
+    const currency = countryCurrencyMap[country] || "USD";
 
     const searchUrl = `https://${domain}/sch/i.html?_nkw=${encodeURIComponent(searchTerm)}&_sop=12`;
     console.log(`[eBay] Navigating to: ${searchUrl}`);
@@ -62,7 +73,7 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
     }
 
     // Extract listings from the page
-    const listings = await page.evaluate((countryParam: string) => {
+    const listings = await page.evaluate((countryParam: string, currencyParam: string) => {
       const items: any[] = [];
       
       // Find all links to item pages
@@ -123,19 +134,30 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
           
           if (!container) container = link.parentElement?.parentElement?.parentElement;
           
-          // Extract price
+          // Extract price - support multiple currency symbols ($, €, £, etc)
           let price = 0;
           if (container) {
             const containerText = container.textContent || '';
-            // Find price pattern $XXX.XX or $X,XXX.XX
-            const priceMatches = containerText.match(/\$[\d,]+\.?\d*/g);
-            if (priceMatches && priceMatches.length > 0) {
-              // Take the first reasonable price (usually the main price)
-              for (const match of priceMatches) {
-                const val = parseFloat(match.replace(/[$,]/g, ''));
-                if (val > 0.5 && val < 10000000) {
-                  price = val;
-                  break;
+            // Find price pattern: currency symbol followed by digits/commas/decimals
+            // Matches: $999.99, €999,99, £999.99, etc
+            const priceMatches = containerText.match(/[$€£¥₹₽₩₪₨₱₡₲₴₵₸₺₼₾]/g) || [];
+            
+            if (priceMatches.length > 0) {
+              // Get unique positions of price symbols
+              const positions = priceMatches.map(() => containerText.search(/[$€£¥₹₽₩₪₨₱₡₲₴₵₸₺₼₾]/));
+              
+              // For each potential price, extract the number part
+              for (const pos of positions) {
+                if (pos === -1) continue;
+                // Look for digits/commas/dots after the currency symbol
+                const afterSymbol = containerText.substring(pos + 1, pos + 20);
+                const numMatch = afterSymbol.match(/^[\s]*[\d,]+\.?\d*/);
+                if (numMatch) {
+                  const val = parseFloat(numMatch[0].trim().replace(/[,]/g, ''));
+                  if (val > 0.5 && val < 10000000) {
+                    price = val;
+                    break;
+                  }
                 }
               }
             }
@@ -155,6 +177,7 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
             imageUrl,
             url: href,
             location: countryParam,
+            currency: currencyParam,
           });
         } catch (e) {
           // Skip
@@ -163,7 +186,7 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
       
       // Return top 40 items
       return items.slice(0, 40);
-    }, country);
+    }, country, currency);
 
     console.log(`[eBay] Extracted ${listings.length} real listings (${listings.filter(l => l.price > 0).length} with prices)`);
 
@@ -173,7 +196,7 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
       itemId: item.itemId,
       title: item.title,
       price: item.price,
-      currencyId: "USD",
+      currencyId: item.currency || "USD",
       location: item.location,
       listingType: "Buy It Now",
       imageUrl: item.imageUrl,
