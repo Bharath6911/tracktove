@@ -62,7 +62,7 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
     }
 
     // Extract listings from the page
-    const listings = await page.evaluate(() => {
+    const listings = await page.evaluate((countryParam: string) => {
       const items: any[] = [];
       
       // Find all links to item pages
@@ -75,8 +75,13 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
         const href = (link as HTMLAnchorElement).href;
         const text = link.textContent?.trim() || '';
         
-        // Skip if title looks like code or tracking
+        // Skip if title looks like code or tracking or navigation
         if (text.includes('utag') || text.includes('var ') || text.startsWith('{') || text.length < 5) {
+          return false;
+        }
+        
+        // Skip common navigation/header links
+        if (text === 'Shop on eBay' || text === 'eBay' || text === 'Buy' || text === 'Sell' || text === 'Help') {
           return false;
         }
         
@@ -100,6 +105,11 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
           title = title.replace(/\s+/g, ' ').substring(0, 120).trim();
           
           if (title.length < 5) return;
+          
+          // Skip if title is just a marketplace name or placeholder
+          if (title === 'Shop on eBay' || title === 'eBay' || title === 'Buy Now') {
+            return;
+          }
           
           // Find the listing container (parent element)
           let container = link.closest('li') || link.closest('div[class*="item"]') || link.parentElement?.parentElement;
@@ -144,7 +154,7 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
             price,
             imageUrl,
             url: href,
-            location: 'United States',
+            location: countryParam,
           });
         } catch (e) {
           // Skip
@@ -153,7 +163,7 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
       
       // Return top 40 items
       return items.slice(0, 40);
-    });
+    }, country);
 
     console.log(`[eBay] Extracted ${listings.length} real listings (${listings.filter(l => l.price > 0).length} with prices)`);
 
