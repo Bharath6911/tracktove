@@ -35,7 +35,7 @@ export function DashboardPage() {
   const [scrollRefs, setScrollRefs] = useState<Record<string, HTMLDivElement | null>>({});
   const [selectedCountry, setSelectedCountry] = useState("USA");
 
-  const countries = ["USA", "UK", "India", "Australia", "Canada", "Germany", "France"];
+  const countries = ["USA", "UK", "Australia", "Canada", "Germany", "France"];
 
   useEffect(() => {
     if (bookmarks.length === 0) {

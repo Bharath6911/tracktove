@@ -34,7 +34,6 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
       "USA": "ebay.com",
       "UK": "ebay.co.uk",
       "Canada": "ebay.ca",
-      "India": "ebay.in",
       "Australia": "ebay.com.au",
       "Germany": "ebay.de",
       "France": "ebay.fr",
@@ -47,18 +46,19 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
 
     await page.goto(searchUrl, { waitUntil: "networkidle2", timeout: 30000 });
     
-    // Wait longer for dynamic content to load
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    // India eBay loads slower - add extra wait
+    const waitTime = country === "India" ? 5000 : 3000;
+    await new Promise(resolve => setTimeout(resolve, waitTime));
     
     // Try to wait for items to appear
     try {
       await page.waitForFunction(
         () => document.querySelectorAll('a[href*="/itm/"]').length > 0,
-        { timeout: 10000 }
+        { timeout: country === "India" ? 20000 : 10000 }
       );
-      console.log("[eBay] Items found on page");
+      console.log(`[eBay] Items found on page for ${country}`);
     } catch (e) {
-      console.log("[eBay] Timeout waiting for items, continuing with evaluate");
+      console.log(`[eBay] Timeout waiting for items on ${country}, continuing anyway`);
     }
 
     // Extract listings from the page
