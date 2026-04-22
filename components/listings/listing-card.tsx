@@ -13,11 +13,16 @@ export function ListingCard({ listing, detailHref }: ListingCardProps) {
       <img src={listing.imageUrl} alt={listing.title} className="h-52 w-full object-cover" loading="lazy" />
 
       <div className="space-y-3 p-4">
-        <div className="flex items-center justify-between gap-3">
-          <span className="rounded-md bg-indigo-400/15 px-2 py-1 text-xs font-medium text-indigo-200">
-            {listing.listingType}
-          </span>
-          <span className="text-xs text-slate-300">{listing.location}</span>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="rounded-md bg-indigo-400/15 px-2 py-1 text-xs font-medium text-indigo-200">
+              {listing.listingType}
+            </span>
+            <span className="rounded-md bg-slate-700/50 px-2 py-1 text-xs font-mono text-slate-300">
+              ID: {listing.id.substring(0, 10)}...
+            </span>
+          </div>
+          <span className="text-xs text-slate-400">{listing.location}</span>
         </div>
 
         <h3 className="line-clamp-2 text-sm font-semibold text-white">{listing.title}</h3>

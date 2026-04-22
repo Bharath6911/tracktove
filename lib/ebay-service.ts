@@ -39,7 +39,7 @@ export async function fetchEbayListings(
       price: item.price,
       previousPrice: null,
       location: item.location,
-      listingType: item.listingType === "Buy It Now" ? "Buy Now" : item.listingType || "Auction",
+      listingType: item.listingType === "Buy Now" ? "Buy Now" : (item.listingType || "Auction") as "Buy Now" | "Auction",
       postedAtIso: new Date(item.postedTime).toISOString(),
       imageUrl: item.imageUrl || "/placeholder-watch.jpg",
       listingUrl: item.viewItemURL,

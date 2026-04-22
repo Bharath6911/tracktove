@@ -122,65 +122,81 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
             return;
           }
           
-          // Find the listing container (parent element)
-          let container = link.closest('li') || link.closest('div[class*="item"]') || link.parentElement?.parentElement;
-          while (container && !container.textContent?.match(/[$€£¥₹₽₩₪₨₱₡₲₴₵₸₺₼₾]/)) {
-            container = container.parentElement;
-            if (container?.tagName === 'BODY') {
-              container = null;
-              break;
-            }
-          }
+          // Find the listing card container - be more specific
+          let container = link.closest('[class*="s-item"]') || 
+                         link.closest('div[class*="item"]') || 
+                         link.closest('li') ||
+                         link.parentElement?.parentElement;
           
-          if (!container) container = link.parentElement?.parentElement?.parentElement;
+          if (!container) return;
           
-          // Extract price - match currency symbol + digits/commas/dots
+          // Extract price - look for the main price, not shipping or other numbers
           let price = 0;
-          if (container) {
-            const text = container.textContent || '';
-            // Match first currency symbol followed by amount (handles . and , separators)
-            const match = text.match(/([$€£¥₹₽₩₪₨₱₡₲₴₵₸₺₼₾])\s*([\d,.]+)/);
-            if (match && match[2]) {
-              let numStr = match[2].trim();
-              // Smarter parsing: if only one separator, use it as decimal if it's comma, thousands if dot
-              const commas = numStr.split(',').length - 1;
-              const dots = numStr.split('.').length - 1;
-              
-              if (commas === 1 && dots === 0) {
-                // Single comma: could be "99,99" (EU) or "1,234" (thousands - unlikely as first price)
-                // Assume EU format if ≤ 2 digits after comma
-                const parts = numStr.split(',');
-                if (parts[1].length <= 2) {
-                  numStr = numStr.replace(',', '.');  // EU decimal
-                }
-                // else leave as is (thousands separator)
-              } else if (dots === 1 && commas === 0) {
-                // Single dot: "99.99" or "1.234"
-                // Assume decimal if ≤ 2 digits after dot, thousands otherwise
-                const parts = numStr.split('.');
-                if (parts[1].length > 2) {
-                  numStr = numStr.replace('.', '');  // Thousands separator
-                }
-                // else keep the dot (decimal)
-              } else if (commas > 0 && dots > 0) {
-                // Multiple separators: rightmost is decimal
-                if (numStr.lastIndexOf('.') > numStr.lastIndexOf(',')) {
-                  numStr = numStr.replace(/,/g, '');  // US format
-                } else {
-                  numStr = numStr.replace(/\./g, '').replace(',', '.');  // EU format
-                }
+          let listingType = "Buy Now";
+          let location = countryParam;
+          
+          const containerText = container.textContent || '';
+          
+          // Look for price patterns: $ followed by 1-5 digit groups with max 2 decimals
+          // Real prices are typically $0.99 to $99,999.99
+          const priceMatches = containerText.match(/([$€£¥₹₽₩₪₨₱₡₲₴₵₸₺₼₾])\s*([\d,]+\.?\d{0,2})/g) || [];
+          
+          // Filter for realistic prices (between $1 and $500k)
+          for (const priceStr of priceMatches) {
+            let numStr = priceStr.replace(/[$€£¥₹₽₩₪₨₱₡₲₴₵₸₺₼₾\s]/g, '');
+            
+            // Handle decimal separators
+            if (numStr.includes(',') && numStr.includes('.')) {
+              const lastDot = numStr.lastIndexOf('.');
+              const lastComma = numStr.lastIndexOf(',');
+              if (lastDot > lastComma) {
+                numStr = numStr.replace(/,/g, '');  // US format
+              } else {
+                numStr = numStr.replace(/\./g, '').replace(',', '.');  // EU format
               }
-              
-              price = parseFloat(numStr);
-              if (!(price > 0.5 && price < 10000000)) {
-                price = 0;
+            } else if (numStr.includes(',')) {
+              const parts = numStr.split(',');
+              if (parts[1]?.length === 2) {
+                numStr = numStr.replace(',', '.');  // EU decimal
+              } else if (parts[1]?.length === 3) {
+                numStr = numStr.replace(',', '');  // Thousands separator
               }
             }
+            
+            const val = parseFloat(numStr);
+            // Accept reasonable prices: $1.00 to $500,000
+            if (val >= 0.99 && val <= 500000) {
+              price = val;
+              break;  // Take first realistic price
+            }
           }
+          
+          // Check for listing type (Auction vs Buy It Now)
+          if (containerText.includes('Auction') || containerText.includes('auction')) {
+            listingType = "Auction";
+          }
+          
+          // Try to extract location with city/state info
+          // Look for location indicators like comma-separated city, state patterns
+          let locationText = countryParam;
+          const locationMatch = containerText.match(/(?:Ship to|Ships to|from|Location)[:\s]+([^•\n]+)/i);
+          if (locationMatch && locationMatch[1]) {
+            locationText = locationMatch[1]
+              .trim()
+              .substring(0, 50)
+              // Clean up common eBay text fragments
+              .replace(/Opens in a new window.*$/i, '')
+              .replace(/Pre-Owned.*$/i, '')
+              .replace(/New$/i, '')
+              .trim();
+          }
+          
+          // Use cleaned location or fallback to country
+          location = locationText || countryParam;
           
           // Extract image URL
           let imageUrl = '';
-          const img = container?.querySelector('img') as HTMLImageElement;
+          const img = container.querySelector('img') as HTMLImageElement;
           if (img?.src && !img.src.includes('pixel') && !img.src.includes('clear.gif') && img.src.startsWith('http')) {
             imageUrl = img.src;
           }
@@ -191,8 +207,9 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
             price,
             imageUrl,
             url: href,
-            location: countryParam,
+            location,
             currency: currencyParam,
+            listingType,
           });
         } catch (e) {
           // Skip
@@ -213,7 +230,7 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
       price: item.price,
       currencyId: item.currency || "USD",
       location: item.location,
-      listingType: "Buy It Now",
+      listingType: item.listingType || "Buy It Now",
       imageUrl: item.imageUrl,
       viewItemURL: item.url,
       postedTime: new Date().toISOString(),
