@@ -52,7 +52,8 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
     const domain = countryDomainMap[country] || "ebay.com";
     const currency = countryCurrencyMap[country] || "USD";
 
-    const searchUrl = `https://${domain}/sch/i.html?_nkw=${encodeURIComponent(searchTerm)}&_sop=12`;
+    // Include both auction and fixed-price listings
+    const searchUrl = `https://${domain}/sch/i.html?_nkw=${encodeURIComponent(searchTerm)}&_sop=12&LH_ItemCondition=3000`;
     console.log(`[eBay] Navigating to: ${searchUrl}`);
 
     await page.goto(searchUrl, { waitUntil: "networkidle2", timeout: 30000 });
@@ -172,7 +173,12 @@ async function fetchRealEbayListings(searchTerm: string, country: string = "USA"
           }
           
           // Check for listing type (Auction vs Buy It Now)
-          if (containerText.includes('Auction') || containerText.includes('auction')) {
+          // Auctions have bid information like "(X bids)" or "Bid:" or "bid"
+          // Also look for "Auction" keyword
+          const hasBidInfo = containerText.match(/\(?\d+\s*bids?\)?|\bBid\b/i);
+          const hasAuctionKeyword = containerText.match(/\bAuction\b/i);
+          
+          if (hasBidInfo || hasAuctionKeyword) {
             listingType = "Auction";
           }
           
