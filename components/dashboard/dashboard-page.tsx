@@ -43,39 +43,44 @@ export function DashboardPage() {
       return;
     }
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(bookmarks));
-  }, [bookmarks]);
 
-  // Fetch real listings from all marketplaces
-  useEffect(() => {
-    const fetchAllListings = async () => {
-      const groups: GroupedListing[] = [];
+    // Only fetch new listings if we have new bookmarks (added, not deleted)
+    // Check if any bookmark is missing from current groupedListings
+    const existingIds = new Set(groupedListings.map((g) => g.bookmark.id));
+    const newBookmarks = bookmarks.filter((b) => !existingIds.has(b.id));
 
-      for (const bookmark of bookmarks) {
-        groups.push({
-          bookmark,
-          listings: [],
-          loading: true,
-        });
-      }
-      setGroupedListings(groups);
+    if (newBookmarks.length === 0) {
+      // No new bookmarks added, just update bookmark references in existing groups
+      setGroupedListings((prev) =>
+        prev
+          .filter((group) => bookmarks.some((b) => b.id === group.bookmark.id))
+          .map((group) => ({
+            ...group,
+            bookmark: bookmarks.find((b) => b.id === group.bookmark.id) || group.bookmark,
+          }))
+      );
+      return;
+    }
 
-      // Fetch listings for each bookmark (searches all regions and marketplaces)
-      const results = await Promise.all(
-        bookmarks.map((bookmark) =>
+    // Only fetch for new bookmarks
+    const fetchNewListings = async () => {
+      const newResults = await Promise.all(
+        newBookmarks.map((bookmark) =>
           fetchListings(bookmark.term, bookmark.id, bookmark.country || selectedCountry)
         )
       );
 
-      const updatedGroups = bookmarks.map((bookmark, index) => ({
-        bookmark,
-        listings: results[index] || [],
-        loading: false,
-      }));
-
-      setGroupedListings(updatedGroups);
+      setGroupedListings((prev) => [
+        ...newBookmarks.map((bookmark, index) => ({
+          bookmark,
+          listings: newResults[index] || [],
+          loading: false,
+        })),
+        ...prev,
+      ]);
     };
 
-    fetchAllListings();
+    fetchNewListings();
   }, [bookmarks]);
 
   function handleAddBookmark(input: { term: string; marketplace: Marketplace }) {
@@ -109,6 +114,8 @@ export function DashboardPage() {
 
   function handleDeleteBookmark(id: string) {
     setBookmarks((previous) => previous.filter((bookmark) => bookmark.id !== id));
+    // Also remove from grouped listings immediately without refetching
+    setGroupedListings((prev) => prev.filter((group) => group.bookmark.id !== id));
   }
 
   function handleRefreshBookmark(bookmarkId: string) {
@@ -296,11 +303,9 @@ export function DashboardPage() {
                         }}
                         className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide"
                       >
-                        {listings.map((listing) => {
-                          // Extract city from location string
-                          const locationParts = listing.location.split(", ");
-                          const city = locationParts[0] || listing.location;
-                          
+                        {listings
+                          .sort((a, b) => new Date(b.postedAtIso).getTime() - new Date(a.postedAtIso).getTime())
+                          .map((listing) => {
                           return (
                           <a
                             key={listing.id}
@@ -321,8 +326,6 @@ export function DashboardPage() {
                                   }
                                 }}
                               />
-                              {/* Marketplace Badge - no text */}
-                              <div className="absolute top-2 right-2 bg-emerald-600 text-white text-xs font-bold px-2 py-1 rounded" />
                             </div>
 
                             <div className="space-y-2 p-3">
@@ -331,8 +334,15 @@ export function DashboardPage() {
                               </h3>
 
                               <div className="space-y-1">
-                                <p className="text-xs text-slate-400">{city}</p>
-                                <p className="text-xs text-slate-500 font-medium">{listing.listingType}</p>
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  <span className="rounded-md bg-indigo-400/15 px-2 py-0.5 text-xs font-medium text-indigo-200">
+                                    {listing.listingType}
+                                  </span>
+                                  <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-semibold text-emerald-300">
+                                    {formatRelativeTime(listing.postedAtIso)}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-400 line-clamp-1">{listing.location}</p>
                               </div>
 
                               <div className="flex items-center justify-between">

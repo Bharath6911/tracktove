@@ -21,7 +21,8 @@ export async function fetchEbayListings(
 ): Promise<Listing[]> {
   try {
     // Fetch from our backend scraper endpoint
-    const response = await fetch(`/api/ebay/search?q=${encodeURIComponent(term)}&country=${encodeURIComponent(country)}&sort=12h`);
+    // Use "newlyListed" sort to get the freshest listings
+    const response = await fetch(`/api/ebay/search?q=${encodeURIComponent(term)}&country=${encodeURIComponent(country)}&sort=newlyListed`);
 
     if (!response.ok) {
       console.error(`Failed to fetch eBay listings: ${response.statusText}`);
@@ -46,7 +47,13 @@ export async function fetchEbayListings(
       sellerName: item.seller || "",
       sellerUrl: "",
       currency: item.currencyId || "USD",
-    }));
+    }))
+      // Sort by posting time - newest first
+      .sort((a, b) => {
+        const timeA = new Date(a.postedAtIso).getTime();
+        const timeB = new Date(b.postedAtIso).getTime();
+        return timeB - timeA; // Latest first
+      });
 
     return listings;
   } catch (error) {
