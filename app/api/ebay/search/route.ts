@@ -1,23 +1,10 @@
-import { scrapeEbayListings } from "@/lib/scrapers/ebay-scraper";
+import { fetchEbayListingsViaApi } from "@/lib/ebay-api-client";
 
-// eBay web scraping endpoint
-// Scrapes real listings from eBay based on search term
-
-interface EbayItem {
-  itemId: string;
-  title: string;
-  price: number;
-  currencyId: string;
-  location: string;
-  listingType: string;
-  imageUrl: string;
-  viewItemURL: string;
-  postedTime: string;
-  seller?: string;
-}
+// eBay API endpoint
+// Fetches real listings from eBay using official REST API
 
 interface EbaySearchResponse {
-  items: EbayItem[];
+  items: any[];
   total: number;
 }
 
@@ -25,22 +12,22 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get("q");
   const country = searchParams.get("country") || "USA";
-  const sortBy = searchParams.get("sort") || "12h";
+  const sortBy = searchParams.get("sort") || "newlyListed";
 
   if (!query) {
     return Response.json({ error: "Query parameter required" }, { status: 400 });
   }
 
   try {
-    // Use web scraper instead of API
-    const items = await scrapeEbayListings(query, sortBy, country);
+    // Use eBay Official API with OAuth
+    const listings = await fetchEbayListingsViaApi(query, "temp", country);
 
     return Response.json({
-      items,
-      total: items.length,
+      items: listings,
+      total: listings.length,
     } as EbaySearchResponse);
   } catch (error) {
-    console.error("eBay scraping error:", error);
+    console.error("eBay API error:", error);
     return Response.json(
       { error: "Failed to fetch eBay listings", details: String(error) },
       { status: 500 }

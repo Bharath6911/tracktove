@@ -1,17 +1,5 @@
+import { fetchEbayListingsViaApi } from "./ebay-api-client";
 import type { Listing, Marketplace } from "@/types/marketplace";
-
-interface EbayItem {
-  itemId: string;
-  title: string;
-  price: number;
-  currencyId: string;
-  location: string;
-  listingType: string;
-  imageUrl: string;
-  viewItemURL: string;
-  postedTime: string;
-  seller?: string;
-}
 
 export async function fetchEbayListings(
   term: string,
@@ -20,42 +8,7 @@ export async function fetchEbayListings(
   marketplace: Marketplace = "eBay"
 ): Promise<Listing[]> {
   try {
-    // Fetch from our backend scraper endpoint
-    // Use "newlyListed" sort to get the freshest listings
-    const response = await fetch(`/api/ebay/search?q=${encodeURIComponent(term)}&country=${encodeURIComponent(country)}&sort=newlyListed`);
-
-    if (!response.ok) {
-      console.error(`Failed to fetch eBay listings: ${response.statusText}`);
-      return [];
-    }
-
-    const data = await response.json();
-
-    // Transform eBay data to our Listing type
-    const listings: Listing[] = (data.items || []).map((item: EbayItem, index: number) => ({
-      id: item.itemId || `ebay-${bookmarkId}-${index}`,
-      bookmarkId,
-      marketplace,
-      title: item.title,
-      price: item.price,
-      previousPrice: null,
-      location: item.location,
-      listingType: item.listingType === "Buy Now" ? "Buy Now" : (item.listingType || "Auction") as "Buy Now" | "Auction",
-      postedAtIso: new Date(item.postedTime).toISOString(),
-      imageUrl: item.imageUrl || "/placeholder-watch.jpg",
-      listingUrl: item.viewItemURL,
-      sellerName: item.seller || "",
-      sellerUrl: "",
-      currency: item.currencyId || "USD",
-    }))
-      // Sort by posting time - newest first
-      .sort((a, b) => {
-        const timeA = new Date(a.postedAtIso).getTime();
-        const timeB = new Date(b.postedAtIso).getTime();
-        return timeB - timeA; // Latest first
-      });
-
-    return listings;
+    return await fetchEbayListingsViaApi(term, bookmarkId, country, marketplace);
   } catch (error) {
     console.error("Error fetching eBay listings:", error);
     return [];

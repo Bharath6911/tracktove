@@ -51,14 +51,20 @@ export function DashboardPage() {
 
     if (newBookmarks.length === 0) {
       // No new bookmarks added, just update bookmark references in existing groups
-      setGroupedListings((prev) =>
-        prev
-          .filter((group) => bookmarks.some((b) => b.id === group.bookmark.id))
+      setGroupedListings((prev) => {
+        // Remove duplicates and filter for active bookmarks
+        const seen = new Set<string>();
+        return prev
+          .filter((group) => {
+            if (seen.has(group.bookmark.id)) return false;
+            seen.add(group.bookmark.id);
+            return bookmarks.some((b) => b.id === group.bookmark.id);
+          })
           .map((group) => ({
             ...group,
             bookmark: bookmarks.find((b) => b.id === group.bookmark.id) || group.bookmark,
-          }))
-      );
+          }));
+      });
       return;
     }
 
@@ -70,14 +76,30 @@ export function DashboardPage() {
         )
       );
 
-      setGroupedListings((prev) => [
-        ...newBookmarks.map((bookmark, index) => ({
-          bookmark,
-          listings: newResults[index] || [],
-          loading: false,
-        })),
-        ...prev,
-      ]);
+      setGroupedListings((prev) => {
+        // Filter out existing groups for new bookmarks (avoid duplicates)
+        const existingGroups = prev.filter(
+          (group) => !newBookmarks.some((nb) => nb.id === group.bookmark.id)
+        );
+
+        // Deduplicate existing groups
+        const seen = new Set<string>();
+        const deduped = existingGroups.filter((group) => {
+          if (seen.has(group.bookmark.id)) return false;
+          seen.add(group.bookmark.id);
+          return true;
+        });
+
+        // Combine new bookmarks with deduplicated existing groups
+        return [
+          ...newBookmarks.map((bookmark, index) => ({
+            bookmark,
+            listings: newResults[index] || [],
+            loading: false,
+          })),
+          ...deduped,
+        ];
+      });
     };
 
     fetchNewListings();
@@ -244,7 +266,13 @@ export function DashboardPage() {
           />
         ) : (
           <div className="space-y-12">
-            {groupedListings.map(({ bookmark, listings, loading }) => (
+            {groupedListings
+              // Deduplicate by bookmark ID
+              .reduce((acc: typeof groupedListings, group) => {
+                const exists = acc.some((g) => g.bookmark.id === group.bookmark.id);
+                return exists ? acc : [...acc, group];
+              }, [])
+              .map(({ bookmark, listings, loading }) => (
               <section key={bookmark.id}>
                 <div className="mb-6 flex items-center justify-between">
                   <h2 className="text-2xl font-bold capitalize">{bookmark.term}</h2>

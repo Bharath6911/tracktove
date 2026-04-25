@@ -1,5 +1,4 @@
 import puppeteer from "puppeteer";
-import { fetchEbayListingsViaApi } from "../ebay-api-service";
 
 interface ScrapedEbayItem {
   itemId: string;
@@ -379,17 +378,8 @@ export async function scrapeEbayListings(
   try {
     console.log(`[Scraper] Searching for: "${searchTerm}" in ${country} (sort: ${sort})`);
 
-    // Try eBay API first
-    console.log("[Scraper] Attempting to fetch via eBay API...");
-    const apiListings = await fetchEbayListingsViaApi(searchTerm, country, sort);
-    
-    if (apiListings.length > 0) {
-      console.log(`✓ Successfully retrieved ${apiListings.length} listings via eBay API`);
-      return apiListings;
-    }
-
-    // Fallback to Puppeteer if API returns no results
-    console.log("[Scraper] API returned no results, falling back to Puppeteer scraping...");
+    // Fetch using Puppeteer
+    console.log("[Scraper] Fetching via Puppeteer scraping...");
     const listings = await fetchRealEbayListings(searchTerm, country, sort);
 
     if (listings.length > 0) {

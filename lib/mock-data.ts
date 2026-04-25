@@ -147,6 +147,7 @@ export function createListingsForBookmark(input: {
       listingUrl: marketplaceSearchUrl,
       sellerName: `seller_${seededNumber(`${seed}-seller`, 1000, 9999)}`,
       sellerUrl: `${MARKETPLACE_SEARCH_URLS[input.marketplace]}${encodeURIComponent(`seller ${input.term}`)}`,
+      currency: "USD",
     };
   });
 
