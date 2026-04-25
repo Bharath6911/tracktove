@@ -1,3 +1,5 @@
+import { createHmac } from "crypto";
+
 // eBay Verification Token Endpoint
 // Used for eBay Platform Notifications verification
 // See: https://developer.ebay.com/develop/guides/integrating-notifications
@@ -7,6 +9,7 @@ export async function GET(request: Request) {
   const challengeCode = searchParams.get("challenge_code");
 
   if (!challengeCode) {
+    console.log("❌ No challenge_code provided");
     return Response.json({ error: "challenge_code required" }, { status: 400 });
   }
 
@@ -14,26 +17,34 @@ export async function GET(request: Request) {
   const verificationToken = process.env.EBAY_VERIFICATION_TOKEN;
 
   if (!verificationToken) {
-    console.error("EBAY_VERIFICATION_TOKEN not set");
+    console.error("❌ EBAY_VERIFICATION_TOKEN not set");
     return Response.json({ error: "Verification token not configured" }, { status: 500 });
   }
 
-  // Create HMAC-SHA256 hash
-  const crypto = require("crypto");
-  const hmac = crypto
-    .createHmac("sha256", verificationToken)
-    .update(challengeCode)
-    .digest("base64");
+  try {
+    // Create HMAC-SHA256 hash
+    const hmac = createHmac("sha256", verificationToken)
+      .update(challengeCode)
+      .digest("base64");
 
-  return Response.json(
-    { challengeResponse: hmac },
-    {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-      },
-    }
-  );
+    console.log("✅ eBay verification challenge responded");
+    console.log("Challenge Code:", challengeCode);
+    console.log("Token prefix:", verificationToken.substring(0, 20) + "...");
+    console.log("HMAC Response:", hmac);
+
+    return Response.json(
+      { challengeResponse: hmac },
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+  } catch (error) {
+    console.error("❌ Error creating HMAC:", error);
+    return Response.json({ error: "Failed to create response" }, { status: 500 });
+  }
 }
 
 // POST endpoint for receiving notifications
